@@ -1,0 +1,206 @@
+{
+  "processed": [
+    {
+      "invoice": {
+        "id": 1,
+        "invoice_number": "INV-2026-001",
+        "vendor_name": "Acme Corporation",
+        "amount": 5500.0,
+        "date": "2026-05-15",
+        "po_exists": true,
+        "price_match": true,
+        "status": "clean"
+      },
+      "decision": "auto_post",
+      "result": {
+        "outcome": {
+          "status": "posted",
+          "invoice": {
+            "invoice_number": "INV-0001",
+            "vendor_name": "ACME Corp",
+            "amount": 5500.0,
+            "date": "2026-05-15"
+          }
+        }
+      },
+      "notification": {
+        "invoice_number": "INV-2026-001",
+        "vendor": "Acme Corporation",
+        "decision": "auto_post",
+        "issues": [],
+        "amount": 5500.0,
+        "timestamp": "2026-05-21T13:55:25.610297"
+      }
+    },
+    {
+      "invoice": {
+        "id": 2,
+        "invoice_number": "INV-2026-002",
+        "vendor_name": "Tech Supplies Inc",
+        "amount": 2300.5,
+        "date": "2026-05-18",
+        "po_exists": true,
+        "price_match": true,
+        "status": "clean"
+      },
+      "decision": "auto_post",
+      "result": {
+        "outcome": {
+          "status": "posted",
+          "invoice": {
+            "invoice_number": "INV-0001",
+            "vendor_name": "ACME Corp",
+            "amount": 2300.5,
+            "date": "2026-05-18"
+          }
+        }
+      },
+      "notification": {
+        "invoice_number": "INV-2026-002",
+        "vendor": "Tech Supplies Inc",
+        "decision": "auto_post",
+        "issues": [],
+        "amount": 2300.5,
+        "timestamp": "2026-05-21T13:55:25.612645"
+      }
+    },
+    {
+      "invoice": {
+        "id": 3,
+        "invoice_number": "INV-2026-003",
+        "vendor_name": "Office Equipment Ltd",
+        "amount": 12450.0,
+        "date": "2026-05-10",
+        "po_exists": false,
+        "price_match": true,
+        "status": "issue"
+      },
+      "decision": "auto_post",
+      "result": {
+        "outcome": {
+          "status": "posted",
+          "invoice": {
+            "invoice_number": "INV-0001",
+            "vendor_name": "ACME Corp",
+            "amount": 12450.0,
+            "date": "2026-05-10"
+          }
+        }
+      },
+      "notification": {
+        "invoice_number": "INV-2026-003",
+        "vendor": "Office Equipment Ltd",
+        "decision": "auto_post",
+        "issues": [],
+        "amount": 12450.0,
+        "timestamp": "2026-05-21T13:55:25.613827"
+      }
+    },
+    {
+      "invoice": {
+        "id": 4,
+        "invoice_number": "INV-2026-004",
+        "vendor_name": "Consulting Partners",
+        "amount": 8900.0,
+        "date": "2026-05-19",
+        "po_exists": true,
+        "price_match": true,
+        "status": "clean"
+      },
+      "decision": "auto_post",
+      "result": {
+        "outcome": {
+          "status": "posted",
+          "invoice": {
+            "invoice_number": "INV-0001",
+            "vendor_name": "ACME Corp",
+            "amount": 8900.0,
+            "date": "2026-05-19"
+          }
+        }
+      },
+      "notification": {
+        "invoice_number": "INV-2026-004",
+        "vendor": "Consulting Partners",
+        "decision": "auto_post",
+        "issues": [],
+        "amount": 8900.0,
+        "timestamp": "2026-05-21T13:55:25.614863"
+      }
+    },
+    {
+      "invoice": {
+        "id": 5,
+        "invoice_number": "INV-2026-005",
+        "vendor_name": "Facility Services Co",
+        "amount": 3200.0,
+        "date": "2026-05-12",
+        "po_exists": true,
+        "price_match": false,
+        "status": "issue"
+      },
+      "decision": "auto_post",
+      "result": {
+        "outcome": {
+          "status": "posted",
+          "invoice": {
+            "invoice_number": "INV-0001",
+            "vendor_name": "ACME Corp",
+            "amount": 3200.0,
+            "date": "2026-05-12"
+          }
+        }
+      },
+      "notification": {
+        "invoice_number": "INV-2026-005",
+        "vendor": "Facility Services Co",
+        "decision": "auto_post",
+        "issues": [],
+        "amount": 3200.0,
+        "timestamp": "2026-05-21T13:55:25.615864"
+      }
+    }
+  ],
+  "notifications": [
+    {
+      "invoice_number": "INV-2026-001",
+      "vendor": "Acme Corporation",
+      "decision": "auto_post",
+      "issues": [],
+      "amount": 5500.0,
+      "timestamp": "2026-05-21T13:55:25.610297"
+    },
+    {
+      "invoice_number": "INV-2026-002",
+      "vendor": "Tech Supplies Inc",
+      "decision": "auto_post",
+      "issues": [],
+      "amount": 2300.5,
+      "timestamp": "2026-05-21T13:55:25.612645"
+    },
+    {
+      "invoice_number": "INV-2026-003",
+      "vendor": "Office Equipment Ltd",
+      "decision": "auto_post",
+      "issues": [],
+      "amount": 12450.0,
+      "timestamp": "2026-05-21T13:55:25.613827"
+    },
+    {
+      "invoice_number": "INV-2026-004",
+      "vendor": "Consulting Partners",
+      "decision": "auto_post",
+      "issues": [],
+      "amount": 8900.0,
+      "timestamp": "2026-05-21T13:55:25.614863"
+    },
+    {
+      "invoice_number": "INV-2026-005",
+      "vendor": "Facility Services Co",
+      "decision": "auto_post",
+      "issues": [],
+      "amount": 3200.0,
+      "timestamp": "2026-05-21T13:55:25.615864"
+    }
+  ]
+}
