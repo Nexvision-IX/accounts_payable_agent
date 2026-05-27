@@ -66,7 +66,7 @@ def init_db():
     cur.execute("""
     CREATE TABLE IF NOT EXISTS po_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        invoice_id INTEGER,
+        invoice_number TEXT,
         po_number TEXT,
         po_amount REAL,
         currency TEXT,
@@ -78,7 +78,7 @@ def init_db():
     cur.execute("""
     CREATE TABLE IF NOT EXISTS grn_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        invoice_id INTEGER,
+        invoice_number TEXT,
         grn_number TEXT,
         grn_posted INTEGER,
         created_at TEXT
@@ -89,6 +89,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS validation_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         invoice_id INTEGER,
+        invoice_number TEXT,
         validation_status TEXT,
         issues TEXT,
         decision TEXT,
@@ -100,6 +101,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS email_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         invoice_id INTEGER,
+        invoice_number TEXT,
         recipient TEXT,
         subject TEXT,
         body TEXT,
@@ -112,6 +114,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS followups (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         invoice_id INTEGER,
+        invoice_number TEXT,
         followup_count INTEGER,
         reply_received INTEGER,
         current_status TEXT,
@@ -176,7 +179,7 @@ def render_workflow():
         margin-bottom:20px;
     ">
         <b>Workflow:</b>
-        📤 Upload Invoice → 🔍 Extraction → 💾 SQLite Storage → 🔗 PO/GRN Retrieval →
+        📤 Upload Invoice → 🔍 Extraction → 💾 SQLite Storage → 🔗 SAP PO/GRN Retrieval →
         ✅ Validation → 🧠 Decision → ⚠️ Exception → 📧 Email → 🔁 Follow-up → 🚀 Posting
     </div>
     """, unsafe_allow_html=True)
@@ -319,8 +322,6 @@ def generate_po_grn_data(invoice, scenario):
             "po_exists": False,
             "po_number": None,
             "po_amount": None,
-            # PO is missing, but GRN is available.
-            # This ensures the email shows only PO_MISSING, not GRN_MISSING.
             "grn_exists": True,
             "grn_posted": True,
             "grn_number": f"GRN-{invoice['id']:04d}",
@@ -382,7 +383,7 @@ def save_po_grn(invoice_id, invoice, sap_data):
     if sap_data["po_exists"]:
         cur.execute("""
         INSERT INTO po_data (
-            invoice_id,
+            invoice_number,
             po_number,
             po_amount,
             currency,
@@ -391,7 +392,7 @@ def save_po_grn(invoice_id, invoice, sap_data):
         )
         VALUES (?, ?, ?, ?, ?, ?)
         """, (
-            invoice_id,
+            invoice["invoice_number"],
             sap_data["po_number"],
             sap_data["po_amount"],
             invoice["currency"],
@@ -402,14 +403,14 @@ def save_po_grn(invoice_id, invoice, sap_data):
     if sap_data["grn_exists"]:
         cur.execute("""
         INSERT INTO grn_data (
-            invoice_id,
+            invoice_number,
             grn_number,
             grn_posted,
             created_at
         )
         VALUES (?, ?, ?, ?)
         """, (
-            invoice_id,
+            invoice["invoice_number"],
             sap_data["grn_number"],
             int(sap_data["grn_posted"]),
             datetime.now().isoformat(),
@@ -428,13 +429,13 @@ def validate_invoice(invoice_id):
     ).fetchone()
 
     po = conn.execute(
-        "SELECT * FROM po_data WHERE invoice_id = ?",
-        (invoice_id,)
+        "SELECT * FROM po_data WHERE invoice_number = ?",
+        (invoice["invoice_number"],)
     ).fetchone()
 
     grn = conn.execute(
-        "SELECT * FROM grn_data WHERE invoice_id = ?",
-        (invoice_id,)
+        "SELECT * FROM grn_data WHERE invoice_number = ?",
+        (invoice["invoice_number"],)
     ).fetchone()
 
     issues = []
@@ -459,14 +460,16 @@ def validate_invoice(invoice_id):
     conn.execute("""
     INSERT INTO validation_results (
         invoice_id,
+        invoice_number,
         validation_status,
         issues,
         decision,
         created_at
     )
-    VALUES (?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?)
     """, (
         invoice_id,
+        invoice["invoice_number"],
         validation_status,
         json.dumps(issues),
         decision,
@@ -482,14 +485,16 @@ def validate_invoice(invoice_id):
         conn.execute("""
         INSERT INTO followups (
             invoice_id,
+            invoice_number,
             followup_count,
             reply_received,
             current_status,
             updated_at
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
         """, (
             invoice_id,
+            invoice["invoice_number"],
             0,
             0,
             "EMAIL_REQUIRED",
@@ -581,21 +586,23 @@ def send_email(config, subject, body):
         return False, str(e)
 
 
-def save_email_log(invoice_id, recipient, subject, body, sent):
+def save_email_log(invoice_id, invoice_number, recipient, subject, body, sent):
     conn = get_conn()
 
     conn.execute("""
     INSERT INTO email_logs (
         invoice_id,
+        invoice_number,
         recipient,
         subject,
         body,
         sent,
         sent_at
     )
-    VALUES (?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (
         invoice_id,
+        invoice_number,
         recipient,
         subject,
         body,
@@ -606,10 +613,10 @@ def save_email_log(invoice_id, recipient, subject, body, sent):
     conn.execute("""
     UPDATE followups
     SET current_status = ?
-    WHERE invoice_id = ?
+    WHERE invoice_number = ?
     """, (
         "WAITING_FOR_REPLY" if sent else "EMAIL_FAILED",
-        invoice_id,
+        invoice_number,
     ))
 
     conn.commit()
@@ -627,11 +634,11 @@ def send_followup(invoice_id):
     validation = conn.execute(
         """
         SELECT * FROM validation_results
-        WHERE invoice_id = ?
+        WHERE invoice_number = ?
         ORDER BY id DESC
         LIMIT 1
         """,
-        (invoice_id,)
+        (invoice["invoice_number"],)
     ).fetchone()
 
     issues = json.loads(validation["issues"])
@@ -661,25 +668,27 @@ def send_followup(invoice_id):
         SET followup_count = followup_count + 1,
             current_status = ?,
             updated_at = ?
-        WHERE invoice_id = ?
+        WHERE invoice_number = ?
         """, (
             "FOLLOWUP_SENT",
             datetime.now().isoformat(),
-            invoice_id,
+            invoice["invoice_number"],
         ))
 
         conn.execute("""
         INSERT INTO email_logs (
             invoice_id,
+            invoice_number,
             recipient,
             subject,
             body,
             sent,
             sent_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             invoice_id,
+            invoice["invoice_number"],
             EMAIL_CONFIG["recipient"],
             subject,
             body,
@@ -696,16 +705,21 @@ def send_followup(invoice_id):
 def mark_reply_received(invoice_id):
     conn = get_conn()
 
+    invoice = conn.execute(
+        "SELECT * FROM invoices WHERE id = ?",
+        (invoice_id,)
+    ).fetchone()
+
     conn.execute("""
     UPDATE followups
     SET reply_received = 1,
         current_status = ?,
         updated_at = ?
-    WHERE invoice_id = ?
+    WHERE invoice_number = ?
     """, (
         "REPLY_RECEIVED",
         datetime.now().isoformat(),
-        invoice_id,
+        invoice["invoice_number"],
     ))
 
     conn.commit()
@@ -714,6 +728,11 @@ def mark_reply_received(invoice_id):
 
 def revalidate_and_post(invoice_id):
     conn = get_conn()
+
+    invoice = conn.execute(
+        "SELECT * FROM invoices WHERE id = ?",
+        (invoice_id,)
+    ).fetchone()
 
     conn.execute(
         "UPDATE invoices SET status = ? WHERE id = ?",
@@ -724,11 +743,11 @@ def revalidate_and_post(invoice_id):
     UPDATE followups
     SET current_status = ?,
         updated_at = ?
-    WHERE invoice_id = ?
+    WHERE invoice_number = ?
     """, (
         "RESOLVED_AND_POSTED",
         datetime.now().isoformat(),
-        invoice_id,
+        invoice["invoice_number"],
     ))
 
     conn.commit()
@@ -751,7 +770,7 @@ def main():
         ✅ Invoice Upload  
         ✅ Data Extraction  
         ✅ SQLite Storage  
-        ✅ PO / GRN Retrieval  
+        ✅ SAP PO / GRN Retrieval  
         ✅ Validation  
         ✅ Exception Handling  
         ✅ Email Notification  
@@ -800,17 +819,23 @@ def main():
                 invoice_id = save_invoice(extracted, scenario)
                 extracted["id"] = invoice_id
 
-                agent_status.info(f"🔗 SAP PO / GRN Retrieval Agent running for {extracted['invoice_number']}")
+                agent_status.info(
+                    f"🔗 SAP PO / GRN Retrieval Agent running for {extracted['invoice_number']}"
+                )
 
                 sap_data = generate_po_grn_data(extracted, scenario)
                 save_po_grn(invoice_id, extracted, sap_data)
 
-                agent_status.info(f"✅ Validation Agent running for {extracted['invoice_number']}")
+                agent_status.info(
+                    f"✅ Validation Agent running for {extracted['invoice_number']}"
+                )
 
                 validation = validate_invoice(invoice_id)
 
                 if validation["decision"] == "EXCEPTION":
-                    agent_status.warning(f"⚠️ Exception Agent triggered for {extracted['invoice_number']}")
+                    agent_status.warning(
+                        f"⚠️ Exception Agent triggered for {extracted['invoice_number']}"
+                    )
 
                     conn = get_conn()
                     invoice = conn.execute(
@@ -828,6 +853,7 @@ def main():
 
                     save_email_log(
                         invoice_id,
+                        invoice["invoice_number"],
                         EMAIL_CONFIG["recipient"],
                         subject,
                         body,
@@ -880,8 +906,8 @@ def main():
 
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Invoices",
-        "PO Data",
-        "GRN Data",
+        "PO Data From SAP",
+        "GRN Data From SAP",
         "Validation",
         "Emails",
         "Follow-ups",
@@ -923,6 +949,7 @@ def main():
 
         for email in emails:
             with st.expander(f"Email: {email['subject']}"):
+                st.write("Invoice Number:", email["invoice_number"])
                 st.write("Recipient:", email["recipient"])
                 st.write("Sent:", bool(email["sent"]))
                 st.markdown(email["body"], unsafe_allow_html=True)
@@ -933,7 +960,7 @@ def main():
 
         for f in followups:
             invoice = next(
-                (x for x in invoices if x["id"] == f["invoice_id"]),
+                (x for x in invoices if x["invoice_number"] == f["invoice_number"]),
                 None,
             )
 
