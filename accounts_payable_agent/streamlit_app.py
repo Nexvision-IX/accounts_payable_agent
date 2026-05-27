@@ -319,9 +319,11 @@ def generate_po_grn_data(invoice, scenario):
             "po_exists": False,
             "po_number": None,
             "po_amount": None,
-            "grn_exists": False,
-            "grn_posted": False,
-            "grn_number": None,
+            # PO is missing, but GRN is available.
+            # This ensures the email shows only PO_MISSING, not GRN_MISSING.
+            "grn_exists": True,
+            "grn_posted": True,
+            "grn_number": f"GRN-{invoice['id']:04d}",
         }
 
     if scenario == "grn_issue":
