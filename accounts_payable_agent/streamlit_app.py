@@ -65,6 +65,104 @@ def init_db():
         if column_name not in existing_columns:
             cur.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
 
+    def migrate_po_table_remove_invoice_id():
+        if not table_exists("po_data"):
+            return
+
+        columns = get_columns("po_data")
+
+        if "invoice_id" not in columns:
+            return
+
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS po_data_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_number TEXT,
+            po_number TEXT,
+            po_amount REAL,
+            currency TEXT,
+            vendor_name TEXT,
+            created_at TEXT
+        )
+        """)
+
+        cur.execute("""
+        INSERT INTO po_data_new (
+            id,
+            invoice_number,
+            po_number,
+            po_amount,
+            currency,
+            vendor_name,
+            created_at
+        )
+        SELECT
+            po_data.id,
+            COALESCE(
+                po_data.invoice_number,
+                (
+                    SELECT invoices.invoice_number
+                    FROM invoices
+                    WHERE invoices.id = po_data.invoice_id
+                )
+            ) AS invoice_number,
+            po_data.po_number,
+            po_data.po_amount,
+            po_data.currency,
+            po_data.vendor_name,
+            po_data.created_at
+        FROM po_data
+        """)
+
+        cur.execute("DROP TABLE po_data")
+        cur.execute("ALTER TABLE po_data_new RENAME TO po_data")
+
+    def migrate_grn_table_remove_invoice_id():
+        if not table_exists("grn_data"):
+            return
+
+        columns = get_columns("grn_data")
+
+        if "invoice_id" not in columns:
+            return
+
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS grn_data_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_number TEXT,
+            grn_number TEXT,
+            grn_posted INTEGER,
+            created_at TEXT
+        )
+        """)
+
+        cur.execute("""
+        INSERT INTO grn_data_new (
+            id,
+            invoice_number,
+            grn_number,
+            grn_posted,
+            created_at
+        )
+        SELECT
+            grn_data.id,
+            COALESCE(
+                grn_data.invoice_number,
+                (
+                    SELECT invoices.invoice_number
+                    FROM invoices
+                    WHERE invoices.id = grn_data.invoice_id
+                )
+            ) AS invoice_number,
+            grn_data.grn_number,
+            grn_data.grn_posted,
+            grn_data.created_at
+        FROM grn_data
+        """)
+
+        cur.execute("DROP TABLE grn_data")
+        cur.execute("ALTER TABLE grn_data_new RENAME TO grn_data")
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,44 +238,12 @@ def init_db():
     )
     """)
 
-    # Safe migrations for existing deployed SQLite DB.
-    # This does not delete any existing table or data.
-    add_column_if_missing("po_data", "invoice_number", "TEXT")
-    add_column_if_missing("grn_data", "invoice_number", "TEXT")
     add_column_if_missing("validation_results", "invoice_number", "TEXT")
     add_column_if_missing("email_logs", "invoice_number", "TEXT")
     add_column_if_missing("followups", "invoice_number", "TEXT")
 
-    # Backfill invoice_number for old rows that still only have invoice_id.
-    cur.execute("""
-    UPDATE po_data
-    SET invoice_number = (
-        SELECT invoices.invoice_number
-        FROM invoices
-        WHERE invoices.id = po_data.invoice_id
-    )
-    WHERE invoice_number IS NULL
-      AND EXISTS (
-        SELECT 1
-        FROM invoices
-        WHERE invoices.id = po_data.invoice_id
-    )
-    """)
-
-    cur.execute("""
-    UPDATE grn_data
-    SET invoice_number = (
-        SELECT invoices.invoice_number
-        FROM invoices
-        WHERE invoices.id = grn_data.invoice_id
-    )
-    WHERE invoice_number IS NULL
-      AND EXISTS (
-        SELECT 1
-        FROM invoices
-        WHERE invoices.id = grn_data.invoice_id
-    )
-    """)
+    migrate_po_table_remove_invoice_id()
+    migrate_grn_table_remove_invoice_id()
 
     cur.execute("""
     UPDATE validation_results
