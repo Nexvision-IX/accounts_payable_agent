@@ -47,6 +47,24 @@ def init_db():
     conn = get_conn()
     cur = conn.cursor()
 
+    def table_exists(table_name):
+        cur.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name=?
+        """, (table_name,))
+        return cur.fetchone() is not None
+
+    def get_columns(table_name):
+        if not table_exists(table_name):
+            return []
+        cur.execute(f"PRAGMA table_info({table_name})")
+        return [row[1] for row in cur.fetchall()]
+
+    def add_column_if_missing(table_name, column_name, column_type):
+        existing_columns = get_columns(table_name)
+        if column_name not in existing_columns:
+            cur.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,6 +137,90 @@ def init_db():
         reply_received INTEGER,
         current_status TEXT,
         updated_at TEXT
+    )
+    """)
+
+    # Safe migrations for existing deployed SQLite DB.
+    # This does not delete any existing table or data.
+    add_column_if_missing("po_data", "invoice_number", "TEXT")
+    add_column_if_missing("grn_data", "invoice_number", "TEXT")
+    add_column_if_missing("validation_results", "invoice_number", "TEXT")
+    add_column_if_missing("email_logs", "invoice_number", "TEXT")
+    add_column_if_missing("followups", "invoice_number", "TEXT")
+
+    # Backfill invoice_number for old rows that still only have invoice_id.
+    cur.execute("""
+    UPDATE po_data
+    SET invoice_number = (
+        SELECT invoices.invoice_number
+        FROM invoices
+        WHERE invoices.id = po_data.invoice_id
+    )
+    WHERE invoice_number IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM invoices
+        WHERE invoices.id = po_data.invoice_id
+    )
+    """)
+
+    cur.execute("""
+    UPDATE grn_data
+    SET invoice_number = (
+        SELECT invoices.invoice_number
+        FROM invoices
+        WHERE invoices.id = grn_data.invoice_id
+    )
+    WHERE invoice_number IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM invoices
+        WHERE invoices.id = grn_data.invoice_id
+    )
+    """)
+
+    cur.execute("""
+    UPDATE validation_results
+    SET invoice_number = (
+        SELECT invoices.invoice_number
+        FROM invoices
+        WHERE invoices.id = validation_results.invoice_id
+    )
+    WHERE invoice_number IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM invoices
+        WHERE invoices.id = validation_results.invoice_id
+    )
+    """)
+
+    cur.execute("""
+    UPDATE email_logs
+    SET invoice_number = (
+        SELECT invoices.invoice_number
+        FROM invoices
+        WHERE invoices.id = email_logs.invoice_id
+    )
+    WHERE invoice_number IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM invoices
+        WHERE invoices.id = email_logs.invoice_id
+    )
+    """)
+
+    cur.execute("""
+    UPDATE followups
+    SET invoice_number = (
+        SELECT invoices.invoice_number
+        FROM invoices
+        WHERE invoices.id = followups.invoice_id
+    )
+    WHERE invoice_number IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM invoices
+        WHERE invoices.id = followups.invoice_id
     )
     """)
 
